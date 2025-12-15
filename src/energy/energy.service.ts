@@ -53,7 +53,7 @@ const MOCK_DAILY_MIX = [
 @Injectable()
 export class EnergyService {
   async getEnergyMix(numberOfDays: number): Promise<DailyEnergyMixDto[]> {
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 1));
     return plainToInstance(
       DailyEnergyMixDto,
       MOCK_DAILY_MIX.slice(0, numberOfDays),
