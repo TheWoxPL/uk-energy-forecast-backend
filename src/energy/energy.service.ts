@@ -1,62 +1,61 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { DailyEnergyMixDto } from './dto';
-
-const MOCK_DAILY_MIX = [
-  {
-    date: '2025-12-10',
-    cleanEnergyPercent: 62,
-    metrics: [
-      { fuel: 'gas', percentage: 43.6 },
-      { fuel: 'coal', percentage: 0.7 },
-      { fuel: 'biomass', percentage: 4.2 },
-      { fuel: 'nuclear', percentage: 17.6 },
-      { fuel: 'hydro', percentage: 1.1 },
-      { fuel: 'imports', percentage: 6.5 },
-      { fuel: 'other', percentage: 0.3 },
-      { fuel: 'wind', percentage: 6.8 },
-      { fuel: 'solar', percentage: 18.1 },
-    ],
-  },
-  {
-    date: '2025-12-11',
-    cleanEnergyPercent: 71,
-    metrics: [
-      { fuel: 'gas', percentage: 0.7 },
-      { fuel: 'coal', percentage: 43.6 },
-      { fuel: 'biomass', percentage: 17.6 },
-      { fuel: 'nuclear', percentage: 4.2 },
-      { fuel: 'hydro', percentage: 18.1 },
-      { fuel: 'imports', percentage: 6.8 },
-      { fuel: 'other', percentage: 0.3 },
-      { fuel: 'wind', percentage: 6.5 },
-      { fuel: 'solar', percentage: 1.1 },
-    ],
-  },
-  {
-    date: '2025-12-12',
-    cleanEnergyPercent: 71,
-    metrics: [
-      { fuel: 'gas', percentage: 0.7 },
-      { fuel: 'coal', percentage: 0.3 },
-      { fuel: 'biomass', percentage: 17.6 },
-      { fuel: 'nuclear', percentage: 1.1 },
-      { fuel: 'hydro', percentage: 18.1 },
-      { fuel: 'imports', percentage: 6.8 },
-      { fuel: 'other', percentage: 43.6 },
-      { fuel: 'wind', percentage: 4.2 },
-      { fuel: 'solar', percentage: 6.5 },
-    ],
-  },
-];
+import { DailyEnergyMixDto, GenerationMixResponseDto } from './dto';
+import { firstValueFrom } from 'rxjs';
+import { HttpService } from '@nestjs/axios';
+import { aggregateToDailyMix } from './utils';
 
 @Injectable()
 export class EnergyService {
+  private readonly logger = new Logger(EnergyService.name);
+
+  constructor(private readonly httpService: HttpService) {}
+  async fetchEnergyMixFromTo(
+    from: string,
+    to: string,
+  ): Promise<DailyEnergyMixDto[]> {
+    const baseUrl = process.env.CARBON_INTENSITY_API_BASE_URL;
+    const url = `${baseUrl}generation/${from}/${to}`;
+
+    try {
+      const { data: rawData } = await firstValueFrom(
+        this.httpService.get<GenerationMixResponseDto>(url, {
+          headers: { Accept: 'application/json' },
+        }),
+      );
+
+      const transformedData = plainToInstance(
+        GenerationMixResponseDto,
+        rawData,
+        {
+          excludeExtraneousValues: true,
+        },
+      );
+
+      const result: DailyEnergyMixDto[] = aggregateToDailyMix(
+        transformedData.data,
+      );
+
+      this.logger.log('Fetched mix data successfully');
+      return plainToInstance(DailyEnergyMixDto, result, {
+        excludeExtraneousValues: true,
+      });
+    } catch (error) {
+      this.logger.error('Error fetching carbon data:');
+      throw error;
+    }
+  }
+
   async getEnergyMix(numberOfDays: number): Promise<DailyEnergyMixDto[]> {
-    await new Promise((resolve) => setTimeout(resolve, 1));
-    return plainToInstance(
-      DailyEnergyMixDto,
-      MOCK_DAILY_MIX.slice(0, numberOfDays),
+    const from = new Date();
+    from.setUTCHours(0, 0, 0, 0);
+    const to = new Date(from);
+    to.setDate(to.getDate() + numberOfDays);
+    from.setUTCMinutes(from.getUTCMinutes() + 1);
+
+    return await this.fetchEnergyMixFromTo(
+      from.toISOString(),
+      to.toISOString(),
     );
   }
 }

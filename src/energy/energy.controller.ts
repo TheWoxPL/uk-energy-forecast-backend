@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
 import { EnergyService } from './energy.service';
 import { DailyEnergyMixDto } from './dto';
 
@@ -8,7 +8,7 @@ export class EnergyController {
 
   @Get('daily-mix/:numberOfDays')
   async getEnergyMix(
-    @Param('numberOfDays') numberOfDays: number,
+    @Param('numberOfDays', ParseIntPipe) numberOfDays: number,
   ): Promise<DailyEnergyMixDto[]> {
     return this.energyService.getEnergyMix(numberOfDays);
   }

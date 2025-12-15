@@ -1,12 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EnergyController } from './energy.controller';
 import { EnergyService } from './energy.service';
+import { HttpModule } from '@nestjs/axios';
 
 describe('EnergyController', () => {
   let controller: EnergyController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
+      imports: [HttpModule],
       controllers: [EnergyController],
       providers: [EnergyService],
     }).compile();
