@@ -38,11 +38,9 @@ export class EnergyService {
       ).map((day) => ({
         ...day,
         metrics: [
-          // najpierw clean energy
           ...day.metrics.filter((m) =>
             CLEAN_SOURCES.includes(m.fuel as FuelType),
           ),
-          // potem pozostałe
           ...day.metrics.filter(
             (m) => !CLEAN_SOURCES.includes(m.fuel as FuelType),
           ),

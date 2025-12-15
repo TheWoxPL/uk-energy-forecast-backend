@@ -6,7 +6,7 @@ import {
 import { CLEAN_SOURCES, FuelType } from '../enums/fuel-type.enum';
 
 function round(value: number): number {
-  return parseFloat(value.toFixed(1));
+  return parseFloat(value.toFixed(2));
 }
 
 interface DayAggregation {
