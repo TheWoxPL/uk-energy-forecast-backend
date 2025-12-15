@@ -4,6 +4,7 @@ import { DailyEnergyMixDto, GenerationMixResponseDto } from './dto';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { aggregateToDailyMix } from './utils';
+import { CLEAN_SOURCES, FuelType } from './enums';
 
 @Injectable()
 export class EnergyService {
@@ -34,7 +35,19 @@ export class EnergyService {
 
       const result: DailyEnergyMixDto[] = aggregateToDailyMix(
         transformedData.data,
-      );
+      ).map((day) => ({
+        ...day,
+        metrics: [
+          // najpierw clean energy
+          ...day.metrics.filter((m) =>
+            CLEAN_SOURCES.includes(m.fuel as FuelType),
+          ),
+          // potem pozostałe
+          ...day.metrics.filter(
+            (m) => !CLEAN_SOURCES.includes(m.fuel as FuelType),
+          ),
+        ],
+      }));
 
       this.logger.log('Fetched mix data successfully');
       return plainToInstance(DailyEnergyMixDto, result, {
