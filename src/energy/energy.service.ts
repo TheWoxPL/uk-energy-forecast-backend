@@ -1,9 +1,27 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { DailyEnergyMixDto, GenerationMixResponseDto } from './dto';
-import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
-import { aggregateToDailyMix } from './utils';
+import { firstValueFrom } from 'rxjs';
+import {
+  addDays,
+  addHours,
+  addMinutes,
+  setSeconds,
+  setMilliseconds,
+} from 'date-fns';
+
+import {
+  ChargingWindowDto,
+  DailyEnergyMixDto,
+  GenerationMixResponseDto,
+  GenerationMixIntervalDto,
+} from './dto';
+import { aggregateToDailyMix, findBestChargingWindow } from './utils';
 import { CLEAN_SOURCES, FuelType } from './enums';
 
 @Injectable()
@@ -11,12 +29,14 @@ export class EnergyService {
   private readonly logger = new Logger(EnergyService.name);
 
   constructor(private readonly httpService: HttpService) {}
-  async fetchEnergyMixFromTo(
+
+  private async fetchRawCarbonData(
     from: string,
     to: string,
-  ): Promise<DailyEnergyMixDto[]> {
+  ): Promise<GenerationMixIntervalDto[]> {
     const baseUrl = process.env.CARBON_INTENSITY_API_BASE_URL;
-    const url = `${baseUrl}generation/${from}/${to}`;
+    const safeBaseUrl = baseUrl?.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    const url = `${safeBaseUrl}generation/${from}/${to}`;
 
     try {
       const { data: rawData } = await firstValueFrom(
@@ -33,40 +53,66 @@ export class EnergyService {
         },
       );
 
-      const result: DailyEnergyMixDto[] = aggregateToDailyMix(
-        transformedData.data,
-      ).map((day) => ({
-        ...day,
-        metrics: [
-          ...day.metrics.filter((m) =>
-            CLEAN_SOURCES.includes(m.fuel as FuelType),
-          ),
-          ...day.metrics.filter(
-            (m) => !CLEAN_SOURCES.includes(m.fuel as FuelType),
-          ),
-        ],
-      }));
-
-      this.logger.log('Fetched mix data successfully');
-      return plainToInstance(DailyEnergyMixDto, result, {
-        excludeExtraneousValues: true,
-      });
+      return transformedData.data;
     } catch (error) {
-      this.logger.error('Error fetching carbon data:');
+      this.logger.error(`Error fetching carbon data from ${url}`, error);
       throw error;
     }
   }
 
   async getEnergyMix(numberOfDays: number): Promise<DailyEnergyMixDto[]> {
-    const from = new Date();
-    from.setUTCHours(0, 0, 0, 0);
-    const to = new Date(from);
-    to.setDate(to.getDate() + numberOfDays);
-    from.setUTCMinutes(from.getUTCMinutes() + 1);
+    const now: Date = addHours(new Date(), 1); // TODO: solving temporary UTC offset
+    now.setUTCHours(0, 0, 0, 0);
 
-    return await this.fetchEnergyMixFromTo(
+    const from: Date = addMinutes(now, 1);
+    const to: Date = addDays(now, numberOfDays);
+
+    const intervals = await this.fetchRawCarbonData(
       from.toISOString(),
       to.toISOString(),
     );
+
+    const aggregatedData = aggregateToDailyMix(intervals);
+
+    const result = aggregatedData.map((day) => ({
+      ...day,
+      metrics: [
+        ...day.metrics.filter((m) =>
+          CLEAN_SOURCES.includes(m.fuel as FuelType),
+        ),
+        ...day.metrics.filter(
+          (m) => !CLEAN_SOURCES.includes(m.fuel as FuelType),
+        ),
+      ],
+    }));
+
+    return plainToInstance(DailyEnergyMixDto, result, {
+      excludeExtraneousValues: true,
+    });
+  }
+
+  async getChargingWindow(numberOfHours: number): Promise<ChargingWindowDto> {
+    if (numberOfHours < 1 || numberOfHours > 6) {
+      throw new BadRequestException('Duration must be between 1 and 6 hours');
+    }
+
+    const now: Date = addHours(new Date(), 1); // TODO: solving temporary UTC offset
+    const from: Date = setMilliseconds(setSeconds(now, 0), 0);
+    const to: Date = addHours(from, 48);
+
+    const intervals = await this.fetchRawCarbonData(
+      from.toISOString(),
+      to.toISOString(),
+    );
+
+    const bestWindow = findBestChargingWindow(intervals, numberOfHours);
+
+    if (!bestWindow) {
+      throw new NotFoundException(
+        'Could not calculate optimal window (not enough data)',
+      );
+    }
+
+    return bestWindow;
   }
 }

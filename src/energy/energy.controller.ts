@@ -1,6 +1,6 @@
 import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
 import { EnergyService } from './energy.service';
-import { DailyEnergyMixDto } from './dto';
+import { ChargingWindowDto, DailyEnergyMixDto } from './dto';
 
 @Controller('energy')
 export class EnergyController {
@@ -11,5 +11,12 @@ export class EnergyController {
     @Param('numberOfDays', ParseIntPipe) numberOfDays: number,
   ): Promise<DailyEnergyMixDto[]> {
     return this.energyService.getEnergyMix(numberOfDays);
+  }
+
+  @Get('charging-window/:numberOfHours')
+  async getChargingWindow(
+    @Param('numberOfHours', ParseIntPipe) numberOfHours: number,
+  ): Promise<ChargingWindowDto> {
+    return this.energyService.getChargingWindow(numberOfHours);
   }
 }
