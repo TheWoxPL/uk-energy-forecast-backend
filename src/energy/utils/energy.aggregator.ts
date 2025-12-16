@@ -47,14 +47,14 @@ export function aggregateToDailyMix(
         const share = totalDailySum > 0 ? (val / totalDailySum) * 100 : 0;
 
         return {
-          fuel: fuel,
+          fuel: fuel as FuelType,
           percentage: round(share),
         };
       },
     );
 
     const cleanEnergyPercent = metrics
-      .filter((m) => CLEAN_SOURCES.includes(m.fuel as FuelType))
+      .filter((m) => CLEAN_SOURCES.includes(m.fuel))
       .reduce((sum, m) => sum + m.percentage, 0);
 
     return {

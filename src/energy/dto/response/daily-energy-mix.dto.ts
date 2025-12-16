@@ -1,4 +1,5 @@
 import { Expose, Type } from 'class-transformer';
+import { FuelType } from '../../enums';
 
 export class DailyEnergyMixDto {
   @Expose()
@@ -14,7 +15,7 @@ export class DailyEnergyMixDto {
 
 export class FuelMetricDto {
   @Expose()
-  fuel!: string;
+  fuel!: FuelType;
 
   @Expose()
   percentage!: number;

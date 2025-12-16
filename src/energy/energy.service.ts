@@ -22,7 +22,7 @@ import {
   GenerationMixIntervalDto,
 } from './dto';
 import { aggregateToDailyMix, findBestChargingWindow } from './utils';
-import { CLEAN_SOURCES, FuelType } from './enums';
+import { CLEAN_SOURCES } from './enums';
 
 @Injectable()
 export class EnergyService {
@@ -77,12 +77,8 @@ export class EnergyService {
     const result = aggregatedData.map((day) => ({
       ...day,
       metrics: [
-        ...day.metrics.filter((m) =>
-          CLEAN_SOURCES.includes(m.fuel as FuelType),
-        ),
-        ...day.metrics.filter(
-          (m) => !CLEAN_SOURCES.includes(m.fuel as FuelType),
-        ),
+        ...day.metrics.filter((m) => CLEAN_SOURCES.includes(m.fuel)),
+        ...day.metrics.filter((m) => !CLEAN_SOURCES.includes(m.fuel)),
       ],
     }));
 
